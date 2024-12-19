@@ -17,7 +17,6 @@ pub enum Token {
 pub enum Literal {
     String(String),
     Int(i32),
-    // Bool(String),
     Float(f64),
 }
 
@@ -87,6 +86,8 @@ impl<'a> Lexer<'a> {
         Token::Literal(Literal::String(value.to_string()))
     }
 
+    /* a finished cell reference token is an optional #, plus the contents.
+    corrected l/rvalues can be fixed later. */
     fn parse_cell_reference(&mut self) -> Token {
         let mut cell_value = String::new();
 
@@ -205,12 +206,8 @@ impl<'a> Lexer<'a> {
             } else if c.is_alphabetic() || c == '_' {
                 tokens.push(self.parse_identifier());
             } else {
-                if let Some(op) = self.parse_operator() {
-                    tokens.push(op);
-                } else {
-                    let start_pos = self.pos;
-                    self.advance();
-                    tokens.push(Token::Error(self.input[start_pos..self.pos].to_string()));
+                if let Some(operator) = self.parse_operator() {
+                    tokens.push(operator);
                 }
             }
         }
