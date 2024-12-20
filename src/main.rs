@@ -1,10 +1,14 @@
 mod tree;
 mod grid;
 mod cell;
+mod lexer;
+mod parser;
 
 use grid::Grid;
 use tree::Expression;
 use cell::CellValue::Int;
+use lexer::{Lexer, Token, TokenType};
+use parser::Parser;
 
 fn main() {
     let mut grid = Grid::new();
@@ -41,4 +45,29 @@ fn main() {
         Ok(result) => println!("Evaluation Result: {:?}", result),
         Err(e) => println!("Evaluation Error: {}", e),
     }
+
+    let input = "5 + 10 * (2.5 + 2) * 1000 + #[1, 1] \"hello world\" #[1, 2] [3, 5] [5000, 49999] >= > >>> ";
+
+    let mut lexer = Lexer::new(input);
+
+    let tokens = lexer.tokenize();
+    for token in &tokens {
+        println!("{:?}", token);
+    }
+
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse();
+
+match ast {
+    Ok(expression) => {
+        println!("Serialized: {}", expression.serialize());
+        match expression.evaluate(&mut grid) {
+            Ok(result) => println!("Evaluation Result: {:?}", result),
+            Err(e) => println!("Evaluation Error: {}", e),
+        }
+    },
+    Err(e) => {
+        println!("Error parsing AST: {}", e);
+    }
+}
 }

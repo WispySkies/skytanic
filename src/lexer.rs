@@ -1,6 +1,6 @@
 use std::str::Chars;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     IntegerLiteral,
     FloatLiteral,
@@ -64,7 +64,7 @@ impl<'a> Lexer<'a> {
             start_index: 0,
             text: input,
         };
-        lexer.advance(); // Initialize the first character
+        lexer.advance();
         lexer
     }
 
