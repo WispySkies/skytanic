@@ -1,20 +1,25 @@
-mod spreadsheet {
-    pub mod cell;
-    pub mod grid;
-}
+mod tree;
 
-use spreadsheet::grid::Grid;
-use spreadsheet::cell::CellValue;
+use tree::Expression;
 
 fn main() {
-    let mut grid = Grid::new();
+    let expr = Expression::LeftShift(
+        Box::new(Expression::Integer(2))
+        ,
+        Box::new(Expression::Add(
+            Box::new(Expression::Integer(5)),
+            Box::new(Expression::Multiply(
+                Box::new(Expression::Integer(3)),
+                Box::new(Expression::Integer(2)),
+            )),
+        ))
+    );
 
-    grid.set_cell_value(0, 0, CellValue::Int(1));
-    grid.set_cell_value(0, 1, CellValue::String("hello world".to_string()));
-    grid.set_cell_value(1, 0, CellValue::Bool(true));
-    grid.set_cell_value(1, 1, CellValue::Float(1.23));
+    let serialized = expr.serialize();
+    println!("Serialized: {}", serialized);
 
-    grid.set_cell_formula(3, 3, "=A1 + B1".to_string());
-
-    grid.render();
+    match expr.evaluate() {
+        Ok(result) => println!("Evaluation Result: {:?}", result),
+        Err(e) => println!("Evaluation Error: {}", e),
+    }
 }
