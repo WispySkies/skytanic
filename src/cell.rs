@@ -3,14 +3,14 @@ use std::fmt;
 #[derive(Clone, Debug)]
 pub enum CellValue {
     String(String),
-    Int(i32),
+    Int(i64),
     Bool(bool),
     Float(f64),
 }
 
 impl Default for CellValue {
     fn default() -> Self {
-        CellValue::String("".to_string())
+        CellValue::Int(0)
     }
 }
 
@@ -23,7 +23,7 @@ pub struct Cell {
 impl Cell {
     pub fn new_empty() -> Self {
         Cell {
-            value: CellValue::String("".to_string()),
+            value: CellValue::Int(0),
             formula: None,
         }
     }

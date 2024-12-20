@@ -1,5 +1,4 @@
-use crate::spreadsheet::cell::Cell;
-use crate::spreadsheet::cell::CellValue;
+use crate::cell::{Cell, CellValue};
 
 const ROWS: usize = 20;
 const COLS: usize = 20;

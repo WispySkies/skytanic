@@ -1,10 +1,12 @@
+use crate::cell::CellValue;
+use crate::Grid;
+
 #[derive(Debug, Clone)]
 pub enum Expression {
     Integer(i64),
     Float(f64),
     Boolean(bool),
     String(String),
-    CellAddress(Box<Expression>, Box<Expression>),
 
     Add(Box<Expression>, Box<Expression>),
     Subtract(Box<Expression>, Box<Expression>),
@@ -18,8 +20,8 @@ pub enum Expression {
     LOr(Box<Expression>, Box<Expression>),
     LNot(Box<Expression>),
 
-    CellLValue(Box<Expression>),
-    CellRValue(Box<Expression>),
+    CellLValue(Box<Expression>, Box<Expression>),
+    CellRValue(Box<Expression>, Box<Expression>),
 
     BAnd(Box<Expression>, Box<Expression>),
     BOr(Box<Expression>, Box<Expression>),
@@ -51,9 +53,6 @@ impl Expression {
             Expression::Float(value) => value.to_string(),
             Expression::Boolean(value) => value.to_string(),
             Expression::String(value) => value.to_string(),
-            Expression::CellAddress(col, row) => {
-                format!("{}, {}", col.serialize(), row.serialize())
-            }
 
             Expression::Add(lhs, rhs) => format!("({} + {})", lhs.serialize(), rhs.serialize()),
             Expression::Subtract(lhs, rhs) => {
@@ -71,8 +70,12 @@ impl Expression {
             Expression::LOr(lhs, rhs) => format!("({} || {})", lhs.serialize(), rhs.serialize()),
             Expression::LNot(expr) => format!("!{}", expr.serialize()),
 
-            Expression::CellLValue(celladdr) => format!("([{}])", celladdr.serialize()),
-            Expression::CellRValue(celladdr) => format!("(#[{}])", celladdr.serialize()),
+            Expression::CellLValue(col, row) => {
+                format!("([{}, {}])", col.serialize(), row.serialize())
+            }
+            Expression::CellRValue(col, row) => {
+                format!("(#[{}, {}])", col.serialize(), row.serialize())
+            }
 
             Expression::BAnd(lhs, rhs) => format!("({} & {})", lhs.serialize(), rhs.serialize()),
             Expression::BOr(lhs, rhs) => format!("({} | {})", lhs.serialize(), rhs.serialize()),
@@ -124,18 +127,16 @@ impl Expression {
         }
     }
 
-    pub fn evaluate(&self) -> Result<Expression, String> {
+    pub fn evaluate(&self, env: &mut Grid) -> Result<Expression, String> {
         match self {
             Expression::Integer(_)
             | Expression::Float(_)
             | Expression::Boolean(_)
             | Expression::String(_) => Ok(self.clone()),
 
-            Expression::CellAddress(_, _) => Ok(Expression::String("CellAddr".to_string())),
-
             Expression::Add(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Integer(l + r))
@@ -152,8 +153,8 @@ impl Expression {
             }
 
             Expression::Subtract(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Integer(l - r))
@@ -170,8 +171,8 @@ impl Expression {
             }
 
             Expression::Multiply(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Integer(l * r))
@@ -188,8 +189,8 @@ impl Expression {
             }
 
             Expression::Divide(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         if r == 0 {
@@ -224,8 +225,8 @@ impl Expression {
             }
 
             Expression::Modulo(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         if r == 0 {
@@ -239,8 +240,8 @@ impl Expression {
             }
 
             Expression::Exp(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Integer(l.pow(r as u32)))
@@ -259,7 +260,7 @@ impl Expression {
             }
 
             Expression::Negate(expr) => {
-                let evaluated_expr = expr.evaluate()?;
+                let evaluated_expr = expr.evaluate(env)?;
                 match evaluated_expr {
                     Expression::Integer(i) => Ok(Expression::Integer(-i)),
                     Expression::Float(f) => Ok(Expression::Float(-f)),
@@ -268,8 +269,8 @@ impl Expression {
             }
 
             Expression::LAnd(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Boolean(l), Expression::Boolean(r)) => {
                         Ok(Expression::Boolean(l && r))
@@ -279,8 +280,8 @@ impl Expression {
             }
 
             Expression::LOr(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Boolean(l), Expression::Boolean(r)) => {
                         Ok(Expression::Boolean(l || r))
@@ -290,19 +291,51 @@ impl Expression {
             }
 
             Expression::LNot(expr) => {
-                let expr = expr.evaluate()?;
+                let expr = expr.evaluate(env)?;
                 match expr {
                     Expression::Boolean(b) => Ok(Expression::Boolean(!b)),
                     _ => Err("Logical NOT only valid on booleans".to_string()),
                 }
             }
 
-            Expression::CellLValue(celladdr) => Ok(Expression::String("[cell]".to_string())),
-            Expression::CellRValue(celladdr) => Ok(Expression::String("#[cell]".to_string())),
+            /* these evaluate to ourselves, it's an assignment */
+            Expression::CellLValue(col, row) => Ok(Expression::CellLValue(
+                *Box::new(col.clone()),
+                Box::new(*row.clone()),
+            )),
+
+            Expression::CellRValue(col, row) => {
+                let col_index = match **col {
+                    Expression::Integer(val) => val as usize,
+                    _ => return Err("Column index must be an integer".to_string()),
+                };
+                let row_index = match **row {
+                    Expression::Integer(val) => val as usize,
+                    _ => return Err("Row index must be an integer".to_string()),
+                };
+
+                match env.get_cell(row_index, col_index) {
+                    Some(cell) => {
+                        let cell_value = cell.get_value();
+
+                        match cell_value {
+                            CellValue::String(value) => Ok(Expression::String(value.clone())),
+                            CellValue::Int(value) => Ok(Expression::Integer(*value)),
+                            CellValue::Bool(value) => Ok(Expression::Boolean(*value)),
+                            CellValue::Float(value) => Ok(Expression::Float(*value)),
+                        }
+                    }
+                    None => Err(format!(
+                        "Cell at ({}, {}) not found",
+                        col.serialize(),
+                        row.serialize()
+                    )),
+                }
+            }
 
             Expression::BAnd(lhs, rhs) => {
-                let left = lhs.evaluate()?;
-                let right = rhs.evaluate()?;
+                let left = lhs.evaluate(env)?;
+                let right = rhs.evaluate(env)?;
 
                 match (left, right) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
@@ -313,8 +346,8 @@ impl Expression {
             }
 
             Expression::BOr(lhs, rhs) => {
-                let left = lhs.evaluate()?;
-                let right = rhs.evaluate()?;
+                let left = lhs.evaluate(env)?;
+                let right = rhs.evaluate(env)?;
 
                 match (left, right) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
@@ -325,8 +358,8 @@ impl Expression {
             }
 
             Expression::Xor(lhs, rhs) => {
-                let left = lhs.evaluate()?;
-                let right = rhs.evaluate()?;
+                let left = lhs.evaluate(env)?;
+                let right = rhs.evaluate(env)?;
 
                 match (left, right) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
@@ -337,7 +370,7 @@ impl Expression {
             }
 
             Expression::BNot(expr) => {
-                let evaluated = expr.evaluate()?;
+                let evaluated = expr.evaluate(env)?;
                 match evaluated {
                     Expression::Integer(i) => Ok(Expression::Integer(!i)),
                     _ => Err("Incompatible type for Bitwise NOT".to_string()),
@@ -345,8 +378,8 @@ impl Expression {
             }
 
             Expression::LeftShift(lhs, rhs) => {
-                let left = lhs.evaluate()?;
-                let right = rhs.evaluate()?;
+                let left = lhs.evaluate(env)?;
+                let right = rhs.evaluate(env)?;
 
                 match (left, right) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
@@ -357,8 +390,8 @@ impl Expression {
             }
 
             Expression::RightShift(lhs, rhs) => {
-                let left = lhs.evaluate()?;
-                let right = rhs.evaluate()?;
+                let left = lhs.evaluate(env)?;
+                let right = rhs.evaluate(env)?;
 
                 match (left, right) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
@@ -369,8 +402,8 @@ impl Expression {
             }
 
             Expression::Equals(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Boolean(l == r))
@@ -387,8 +420,8 @@ impl Expression {
             }
 
             Expression::NotEquals(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Boolean(l != r))
@@ -405,8 +438,8 @@ impl Expression {
             }
 
             Expression::LessThan(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Boolean(l < r))
@@ -417,8 +450,8 @@ impl Expression {
             }
 
             Expression::LessThanEq(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Boolean(l <= r))
@@ -429,8 +462,8 @@ impl Expression {
             }
 
             Expression::GreaterThan(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Boolean(l > r))
@@ -441,8 +474,8 @@ impl Expression {
             }
 
             Expression::GreaterThanEq(lhs, rhs) => {
-                let lhs = lhs.evaluate()?;
-                let rhs = rhs.evaluate()?;
+                let lhs = lhs.evaluate(env)?;
+                let rhs = rhs.evaluate(env)?;
                 match (lhs, rhs) {
                     (Expression::Integer(l), Expression::Integer(r)) => {
                         Ok(Expression::Boolean(l >= r))
@@ -453,7 +486,7 @@ impl Expression {
             }
 
             Expression::FTI(expr) => {
-                let evaluated_expr = expr.evaluate()?;
+                let evaluated_expr = expr.evaluate(env)?;
                 match evaluated_expr {
                     Expression::Integer(i) => Ok(Expression::Float(i as f64)),
                     _ => Err("FTI operation only valid on integers".to_string()),
@@ -461,7 +494,7 @@ impl Expression {
             }
 
             Expression::ITF(expr) => {
-                let evaluated_expr = expr.evaluate()?;
+                let evaluated_expr = expr.evaluate(env)?;
                 match evaluated_expr {
                     Expression::Float(f) => Ok(Expression::Integer(f as i64)),
                     _ => Err("ITF operation only valid on floats".to_string()),
@@ -470,7 +503,7 @@ impl Expression {
 
             Expression::Max(expressions) => {
                 let evaluated: Result<Vec<Expression>, String> =
-                    expressions.iter().map(|e| e.evaluate()).collect();
+                    expressions.iter().map(|e| e.evaluate(env)).collect();
                 let evaluated = evaluated?;
                 let mut max_value = &evaluated[0];
                 for expr in &evaluated[1..] {
@@ -493,7 +526,7 @@ impl Expression {
 
             Expression::Min(expressions) => {
                 let evaluated: Result<Vec<Expression>, String> =
-                    expressions.iter().map(|e| e.evaluate()).collect();
+                    expressions.iter().map(|e| e.evaluate(env)).collect();
                 let evaluated = evaluated?;
                 let mut min_value = &evaluated[0];
                 for expr in &evaluated[1..] {
@@ -516,7 +549,7 @@ impl Expression {
 
             Expression::Mean(expressions) => {
                 let evaluated: Result<Vec<Expression>, String> =
-                    expressions.iter().map(|e| e.evaluate()).collect();
+                    expressions.iter().map(|e| e.evaluate(env)).collect();
                 let evaluated = evaluated?;
                 let sum = evaluated.iter().try_fold(0.0, |acc, e| match e {
                     Expression::Integer(i) => Ok(acc + *i as f64),
@@ -529,7 +562,7 @@ impl Expression {
 
             Expression::Sum(expressions) => {
                 let evaluated: Result<Vec<Expression>, String> =
-                    expressions.iter().map(|e| e.evaluate()).collect();
+                    expressions.iter().map(|e| e.evaluate(env)).collect();
                 let evaluated = evaluated?;
                 let sum = evaluated.iter().try_fold(0, |acc, e| match e {
                     Expression::Integer(i) => Ok(acc + *i),
