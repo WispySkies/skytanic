@@ -39,14 +39,14 @@ fn main() {
         Err(e) => println!("Evaluation Error: {}", e),
     }
 
-    grid.set_cell_value(1, 1, Int(22));
+    grid.set_cell_value(1, 1, Int(-999));
 
     match expr.evaluate(&mut grid) {
         Ok(result) => println!("Evaluation Result: {:?}", result),
         Err(e) => println!("Evaluation Error: {}", e),
     }
 
-    let input = "5 + 10 * (2.5 + 2) * 1000 + #[1, 1] \"hello world\" #[1, 2] [3, 5] [5000, 49999] >= > >>> ";
+    let input = "5 + 10 * (2.5 + 2) * 1000 + [1, 1] \"hello world\" #[1, 2] [3, 5] [5000, 49999] >= > >>> ";
 
     let mut lexer = Lexer::new(input);
 

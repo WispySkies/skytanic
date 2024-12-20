@@ -208,7 +208,37 @@ impl Parser {
             self.advance();
             return Ok(expr);
         }
-        Err("Unexpected token".to_string())
+        if self.has(TokenType::CellReference) {
+            self.advance();
+            if !self.has(TokenType::BracketOpen) {
+                return Err("Expected opening bracket".to_string());
+            }
+            self.advance();
+            let col = self.expression()?;
+            self.advance(); /* comma */
+            let row = self.expression()?;
+            if !self.has(TokenType::BracketClose) {
+                return Err("Expected closing bracket".to_string());
+            }
+            self.advance();
+            return Ok(Expression::CellRValue(Box::new(col), Box::new(row)));
+        }
+        if self.has(TokenType::BracketOpen) {
+            self.advance();
+            let col = self.expression()?;
+            self.advance(); /* comma */
+            let row = self.expression()?;
+            if !self.has(TokenType::BracketClose) {
+                return Err("Expected closing bracket".to_string());
+            }
+            self.advance();
+            return Ok(Expression::CellLValue(Box::new(col), Box::new(row)));
+        }
+        Err(format!(
+            "Unexpected token: {:?} at position {}",
+            self.tokens[self.current_index],
+            self.current_index
+        ))
     }
 
     fn has(&mut self, token_type: TokenType) -> bool {
